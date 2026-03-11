@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CommitCraft — AI Conventional Commit Message Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .gradient-bg { background: linear-gradient(135deg, #0a0f1e 0%, #0f2040 50%, #0a0f1e 100%); }
+    .card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); }
+    .type-btn { transition: all 0.15s; cursor: pointer; }
+    .type-btn.selected { background: rgba(99,102,241,0.3); border-color: rgb(99,102,241); }
+    .type-btn:not(.selected):hover { background: rgba(255,255,255,0.08); }
+    .commit-output { font-family: 'SF Mono', 'Fira Code', monospace; letter-spacing: -0.01em; }
+  </style>
+</head>
+<body class="gradient-bg min-h-screen text-white">
+
+  <!-- Header -->
+  <header class="border-b border-white/10 px-6 py-4">
+    <div class="max-w-3xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🔨</span>
+        <span class="text-xl font-bold">CommitCraft</span>
+        <span class="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Free Beta</span>
+      </div>
+      <div class="flex items-center gap-4 text-sm text-white/40">
+        <a href="https://shiffasultan-collab.github.io/gitdigest-static/" target="_blank" class="hover:text-white transition-colors">GitDigest</a>
+        <a href="https://shiffasultan-collab.github.io/prcraft/" target="_blank" class="hover:text-white transition-colors">PRCraft</a>
+        <a href="#pricing" class="hover:text-white transition-colors">Pricing</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="max-w-3xl mx-auto px-6 pt-14 pb-8 text-center">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4 bg-gradient-to-r from-white to-emerald-300 bg-clip-text text-transparent">
+      Perfect commit messages, instantly
+    </h1>
+    <p class="text-lg text-white/60 max-w-lg mx-auto mb-2">
+      Describe what you changed. Get a conventional commit message ready to paste.
+    </p>
+    <p class="text-sm text-emerald-400">🔒 Client-side only — your API key never leaves your browser</p>
+  </section>
+
+  <!-- App -->
+  <main class="max-w-3xl mx-auto px-6 pb-20">
+
+    <!-- API Key -->
+    <div class="card rounded-2xl p-5 mb-5">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-yellow-400 text-sm">🔑</span>
+        <span class="text-sm font-medium text-white/70">OpenAI API Key</span>
+        <span class="text-xs text-white/30">(stored locally, never sent to us)</span>
+      </div>
+      <div class="flex gap-2">
+        <input id="apiKeyInput" type="password" placeholder="sk-..."
+          class="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-indigo-500 transition-colors" />
+        <button onclick="saveKey()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-sm font-medium transition-colors">Save</button>
+        <button onclick="clearKey()" class="px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm text-white/50 transition-colors">✕</button>
+      </div>
+      <p id="keyStatus" class="text-xs mt-2 text-white/30"></p>
+    </div>
+
+    <!-- Commit Type -->
+    <div class="card rounded-2xl p-5 mb-5">
+      <p class="text-sm font-medium text-white/70 mb-3">1. Commit type</p>
+      <div class="grid grid-cols-4 md:grid-cols-8 gap-2" id="typeGrid">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <!-- Scope (optional) -->
+    <div class="card rounded-2xl p-5 mb-5">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-sm font-medium text-white/70">2. Scope <span class="text-white/30 font-normal">(optional)</span></p>
+      </div>
+      <input id="scopeInput" type="text" placeholder="e.g. auth, api, ui, payments..."
+        class="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-indigo-500 transition-colors" />
+    </div>
+
+    <!-- Description -->
+    <div class="card rounded-2xl p-5 mb-5">
+      <p class="text-sm font-medium text-white/70 mb-3">3. What did you change?</p>
+      <textarea id="descInput" rows="4" placeholder="e.g. Added rate limiting to the login endpoint. Users are now limited to 5 attempts per minute. Returns 429 Too Many Requests on exceeded limit."
+        class="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-indigo-500 transition-colors resize-none"
+      ></textarea>
+      <div class="flex items-center justify-between mt-3">
+        <label class="flex items-center gap-2 text-sm text-white/50 cursor-pointer">
+          <input type="checkbox" id="breakingCheck" class="rounded" />
+          <span>Breaking change</span>
+        </label>
+        <div class="flex items-center gap-4">
+          <span id="usageCounter" class="text-xs text-white/30"></span>
+          <button onclick="generate()" id="generateBtn"
+            class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-semibold text-sm transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+            Generate 🔨
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loadingSection" class="hidden card rounded-2xl p-6 mb-5 text-center">
+      <div class="inline-block w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+      <p class="text-sm text-white/50">Crafting your commit...</p>
+    </div>
+
+    <!-- Error -->
+    <div id="errorSection" class="hidden card rounded-2xl p-5 mb-5 border-red-500/30 bg-red-500/5">
+      <p class="text-sm text-red-300">⚠️ <span id="errorText"></span></p>
+    </div>
+
+    <!-- Result -->
+    <div id="resultSection" class="hidden card rounded-2xl p-5 mb-5 border-emerald-500/20">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-semibold flex items-center gap-2 text-sm">✅ Your commit message</h2>
+        <button onclick="copyCommit()" id="copyBtn"
+          class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-medium transition-colors">
+          Copy 📋
+        </button>
+      </div>
+
+      <!-- Main commit line -->
+      <div class="bg-black/40 rounded-xl p-4 mb-3 group cursor-pointer" onclick="copyCommit()">
+        <p id="commitLine" class="commit-output text-emerald-300 text-base font-semibold"></p>
+      </div>
+
+      <!-- Body (optional) -->
+      <div id="commitBodySection" class="hidden bg-black/30 rounded-xl p-4 mb-3">
+        <p class="text-xs text-white/30 mb-2 uppercase tracking-wider">Body</p>
+        <pre id="commitBody" class="commit-output text-white/70 text-sm"></pre>
+      </div>
+
+      <!-- Footer (breaking change) -->
+      <div id="commitFooterSection" class="hidden bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-3">
+        <p class="text-xs text-red-400 mb-1 uppercase tracking-wider">Breaking Change</p>
+        <pre id="commitFooter" class="commit-output text-red-300 text-sm"></pre>
+      </div>
+
+      <!-- Full copy area -->
+      <textarea id="fullCommit" class="hidden" readonly></textarea>
+
+      <!-- Alternatives -->
+      <div id="alternativesSection" class="hidden mt-4">
+        <p class="text-xs text-white/30 mb-2 uppercase tracking-wider">Alternatives</p>
+        <div id="alternativesList" class="space-y-2"></div>
+      </div>
+
+      <!-- Usage tip -->
+      <p class="text-xs text-white/20 mt-3">💡 Tip: click the commit to copy, or use the Copy button</p>
+    </div>
+
+    <!-- History -->
+    <div id="historySection" class="hidden card rounded-2xl p-5 mb-5">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-sm font-medium text-white/70">Recent commits</p>
+        <button onclick="clearHistory()" class="text-xs text-white/30 hover:text-white/60">Clear</button>
+      </div>
+      <div id="historyList" class="space-y-2"></div>
+    </div>
+
+    <!-- Pricing -->
+    <section id="pricing" class="mt-16">
+      <h2 class="text-2xl font-bold text-center mb-8">Pricing</h2>
+      <div class="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+        <div class="card rounded-2xl p-6">
+          <h3 class="font-bold text-lg mb-1">Free</h3>
+          <p class="text-3xl font-extrabold mb-4">$0</p>
+          <ul class="text-sm text-white/60 space-y-2 mb-6">
+            <li>✅ 10 commits / day</li>
+            <li>✅ All commit types</li>
+            <li>✅ Your own OpenAI key</li>
+            <li>✅ One-click copy</li>
+          </ul>
+          <button onclick="document.getElementById('descInput').focus()"
+            class="w-full py-2 border border-white/20 rounded-xl text-sm hover:bg-white/5 transition-colors">
+            Start Free
+          </button>
+        </div>
+        <div class="card rounded-2xl p-6 border-emerald-500/30 relative">
+          <div class="absolute top-3 right-3 text-xs px-2 py-1 bg-emerald-600 rounded-full">Best Value</div>
+          <h3 class="font-bold text-lg mb-1">Pro</h3>
+          <p class="text-3xl font-extrabold mb-1">$3<span class="text-lg font-normal text-white/50">/mo</span></p>
+          <p class="text-xs text-white/40 mb-4">Early access price — locked in forever</p>
+          <ul class="text-sm text-white/60 space-y-2 mb-6">
+            <li>✅ Unlimited commits</li>
+            <li>✅ Custom scope templates</li>
+            <li>✅ Team commit style guide</li>
+            <li>✅ Git hook snippet export</li>
+            <li>✅ Priority support</li>
+          </ul>
+          <button onclick="joinWaitlist()"
+            class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-semibold transition-colors">
+            Join Early Access
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Waitlist -->
+    <div id="waitlistSection" class="hidden max-w-md mx-auto mt-8 card rounded-2xl p-6 text-center">
+      <h3 class="font-semibold mb-2">🎉 Join the waitlist</h3>
+      <p class="text-sm text-white/60 mb-4">$3/mo locked in. First 200 spots.</p>
+      <div class="flex gap-2">
+        <input id="waitlistEmail" type="email" placeholder="you@example.com"
+          class="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-emerald-500" />
+        <button onclick="submitWaitlist()"
+          class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-medium">Join</button>
+      </div>
+    </div>
+
+    <!-- Suite banner -->
+    <div class="mt-16 card rounded-2xl p-6 text-center">
+      <p class="text-sm text-white/40 mb-3">Part of the Developer Writing Suite</p>
+      <div class="flex justify-center gap-6 text-sm">
+        <a href="https://shiffasultan-collab.github.io/gitdigest-static/" target="_blank"
+          class="text-indigo-300 hover:text-white transition-colors">📖 GitDigest</a>
+        <a href="https://shiffasultan-collab.github.io/prcraft/" target="_blank"
+          class="text-indigo-300 hover:text-white transition-colors">⚡ PRCraft</a>
+        <span class="text-emerald-300">🔨 CommitCraft</span>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="border-t border-white/10 px-6 py-6 text-center text-sm text-white/30">
+    <p>CommitCraft — by OpenClaw Ventures</p>
+    <p class="text-xs mt-1">Your API key is stored locally in your browser and never transmitted to our servers.</p>
+  </footer>
+
+  <script>
+    // ── Commit types ──────────────────────────────────────────────────────────
+    const TYPES = [
+      { value: 'feat',     emoji: '✨', label: 'feat',     desc: 'New feature' },
+      { value: 'fix',      emoji: '🐛', label: 'fix',      desc: 'Bug fix' },
+      { value: 'docs',     emoji: '📝', label: 'docs',     desc: 'Documentation' },
+      { value: 'style',    emoji: '💄', label: 'style',    desc: 'Formatting' },
+      { value: 'refactor', emoji: '♻️',  label: 'refactor', desc: 'Refactor' },
+      { value: 'perf',     emoji: '⚡', label: 'perf',     desc: 'Performance' },
+      { value: 'test',     emoji: '🧪', label: 'test',     desc: 'Tests' },
+      { value: 'chore',    emoji: '🔧', label: 'chore',    desc: 'Chore/build' },
+    ];
+
+    const DAILY_LIMIT = 10;
+    const LS_KEY      = 'commitcraft_openai_key';
+    const LS_USAGE    = 'commitcraft_usage';
+    const LS_HISTORY  = 'commitcraft_history';
+
+    let selectedType = 'feat';
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', () => {
+      renderTypeGrid();
+      const saved = localStorage.getItem(LS_KEY);
+      if (saved) {
+        document.getElementById('apiKeyInput').value = saved;
+        document.getElementById('keyStatus').textContent = '✅ Key saved';
+      }
+      updateUsageDisplay();
+      renderHistory();
+    });
+
+    // ── Type grid ─────────────────────────────────────────────────────────────
+    function renderTypeGrid() {
+      const grid = document.getElementById('typeGrid');
+      grid.innerHTML = TYPES.map(t => `
+        <button
+          class="type-btn card rounded-xl p-2 text-center text-xs ${t.value === selectedType ? 'selected' : ''}"
+          data-type="${t.value}"
+          onclick="selectType('${t.value}')"
+          title="${t.desc}"
+        >
+          <div class="text-lg mb-0.5">${t.emoji}</div>
+          <div class="font-mono font-semibold text-white/80">${t.label}</div>
+        </button>
+      `).join('');
+    }
+
+    function selectType(type) {
+      selectedType = type;
+      renderTypeGrid();
+    }
+
+    // ── API Key ───────────────────────────────────────────────────────────────
+    function saveKey() {
+      const val = document.getElementById('apiKeyInput').value.trim();
+      if (!val.startsWith('sk-')) {
+        document.getElementById('keyStatus').textContent = '⚠️ Key should start with sk-';
+        return;
+      }
+      localStorage.setItem(LS_KEY, val);
+      document.getElementById('keyStatus').textContent = '✅ Key saved locally';
+    }
+
+    function clearKey() {
+      localStorage.removeItem(LS_KEY);
+      document.getElementById('apiKeyInput').value = '';
+      document.getElementById('keyStatus').textContent = 'Cleared';
+    }
+
+    // ── Usage ─────────────────────────────────────────────────────────────────
+    function getUsage() {
+      const today = new Date().toISOString().slice(0, 10);
+      try {
+        const d = JSON.parse(localStorage.getItem(LS_USAGE) || '{}');
+        return d.date === today ? (d.count || 0) : 0;
+      } catch { return 0; }
+    }
+
+    function incrementUsage() {
+      const today = new Date().toISOString().slice(0, 10);
+      localStorage.setItem(LS_USAGE, JSON.stringify({ date: today, count: getUsage() + 1 }));
+      updateUsageDisplay();
+    }
+
+    function updateUsageDisplay() {
+      const used = getUsage();
+      const rem  = DAILY_LIMIT - used;
+      const el   = document.getElementById('usageCounter');
+      if (rem <= 0) {
+        el.textContent = '⚠️ Daily limit reached';
+        el.classList.add('text-red-400');
+      } else {
+        el.textContent = `${used}/${DAILY_LIMIT} today`;
+      }
+    }
+
+    // ── Generate ──────────────────────────────────────────────────────────────
+    async function generate() {
+      const apiKey  = localStorage.getItem(LS_KEY);
+      const desc    = document.getElementById('descInput').value.trim();
+      const scope   = document.getElementById('scopeInput').value.trim();
+      const breaking = document.getElementById('breakingCheck').checked;
+
+      if (!apiKey)  return showError('Please save your OpenAI API key first.');
+      if (!desc)    return showError('Please describe what you changed.');
+      if (getUsage() >= DAILY_LIMIT) return showError('Daily limit reached. Upgrade to Pro for unlimited commits.');
+
+      setLoading(true);
+      hideError(); hideResult();
+
+      try {
+        const scopeStr = scope ? `(${scope})` : '';
+        const breakingStr = breaking ? '\nBREAKING CHANGE: yes' : '';
+
+        const prompt = `You are an expert at writing conventional commits. Generate a commit message following the Conventional Commits specification (https://www.conventionalcommits.org/).
+
+Type: ${selectedType}
+Scope: ${scope || 'none'}
+Breaking change: ${breaking ? 'YES' : 'no'}
+Description of changes: ${desc}
+
+Respond with ONLY a JSON object in this exact format (no markdown, no extra text):
+{
+  "subject": "the first line: type(scope): short imperative description (max 72 chars)",
+  "body": "optional body paragraph(s) explaining WHY (empty string if not needed)",
+  "footer": "breaking change footer or empty string",
+  "alternatives": ["2 alternative subject lines as array of strings"]
+}
+
+Rules:
+- subject must start with: ${selectedType}${scopeStr}: 
+- subject is lowercase, imperative mood, no period at end, max 72 chars
+- body explains the motivation, not what (empty if obvious)
+- footer: "BREAKING CHANGE: description" only if breaking=yes, else empty
+- alternatives: 2 shorter/different phrasings of the subject line`;
+
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 400,
+            temperature: 0.3,
+            response_format: { type: 'json_object' }
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error?.message || `OpenAI error: ${res.status}`);
+        }
+
+        const data = await res.json();
+        const parsed = JSON.parse(data.choices[0].message.content);
+
+        incrementUsage();
+        setLoading(false);
+        showResult(parsed);
+        saveToHistory(parsed.subject);
+
+      } catch (err) {
+        setLoading(false);
+        showError(err.message);
+      }
+    }
+
+    // ── UI ────────────────────────────────────────────────────────────────────
+    function setLoading(show) {
+      document.getElementById('loadingSection').classList.toggle('hidden', !show);
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = show;
+      btn.textContent = show ? 'Crafting...' : 'Generate 🔨';
+    }
+
+    function showError(msg) {
+      document.getElementById('errorSection').classList.remove('hidden');
+      document.getElementById('errorText').textContent = msg;
+    }
+
+    function hideError() { document.getElementById('errorSection').classList.add('hidden'); }
+
+    function showResult(parsed) {
+      document.getElementById('resultSection').classList.remove('hidden');
+
+      document.getElementById('commitLine').textContent = parsed.subject;
+
+      const bodyEl = document.getElementById('commitBody');
+      const bodySection = document.getElementById('commitBodySection');
+      if (parsed.body) {
+        bodyEl.textContent = parsed.body;
+        bodySection.classList.remove('hidden');
+      } else {
+        bodySection.classList.add('hidden');
+      }
+
+      const footerEl = document.getElementById('commitFooter');
+      const footerSection = document.getElementById('commitFooterSection');
+      if (parsed.footer) {
+        footerEl.textContent = parsed.footer;
+        footerSection.classList.remove('hidden');
+      } else {
+        footerSection.classList.add('hidden');
+      }
+
+      // Full commit string
+      let full = parsed.subject;
+      if (parsed.body) full += '\n\n' + parsed.body;
+      if (parsed.footer) full += '\n\n' + parsed.footer;
+      document.getElementById('fullCommit').value = full;
+
+      // Alternatives
+      const altSection = document.getElementById('alternativesSection');
+      const altList = document.getElementById('alternativesList');
+      if (parsed.alternatives?.length) {
+        altList.innerHTML = parsed.alternatives.map(a => `
+          <div class="bg-black/30 rounded-lg px-4 py-2 text-sm text-white/50 font-mono cursor-pointer hover:text-white/80 transition-colors"
+               onclick="useAlternative('${a.replace(/'/g, "\\'")}')">
+            ${a}
+          </div>
+        `).join('');
+        altSection.classList.remove('hidden');
+      } else {
+        altSection.classList.add('hidden');
+      }
+    }
+
+    function hideResult() { document.getElementById('resultSection').classList.add('hidden'); }
+
+    function copyCommit() {
+      const full = document.getElementById('fullCommit').value;
+      navigator.clipboard.writeText(full).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = '✅ Copied!';
+        setTimeout(() => btn.textContent = 'Copy 📋', 2000);
+      });
+    }
+
+    function useAlternative(text) {
+      document.getElementById('commitLine').textContent = text;
+      document.getElementById('fullCommit').value = text;
+    }
+
+    // ── History ───────────────────────────────────────────────────────────────
+    function saveToHistory(subject) {
+      const history = JSON.parse(localStorage.getItem(LS_HISTORY) || '[]');
+      history.unshift({ subject, ts: new Date().toISOString() });
+      localStorage.setItem(LS_HISTORY, JSON.stringify(history.slice(0, 20)));
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const history = JSON.parse(localStorage.getItem(LS_HISTORY) || '[]');
+      if (!history.length) return;
+      const section = document.getElementById('historySection');
+      const list = document.getElementById('historyList');
+      section.classList.remove('hidden');
+      list.innerHTML = history.slice(0, 5).map(h => `
+        <div class="flex items-center justify-between gap-3 text-xs">
+          <code class="text-white/50 font-mono truncate flex-1">${h.subject}</code>
+          <button onclick="copyText('${h.subject.replace(/'/g, "\\'")}');this.textContent='✅';setTimeout(()=>this.textContent='Copy',1500)"
+            class="text-white/30 hover:text-white/60 shrink-0">Copy</button>
+        </div>
+      `).join('');
+    }
+
+    function clearHistory() {
+      localStorage.removeItem(LS_HISTORY);
+      document.getElementById('historySection').classList.add('hidden');
+    }
+
+    function copyText(text) { navigator.clipboard.writeText(text); }
+
+    // ── Waitlist ──────────────────────────────────────────────────────────────
+    function joinWaitlist() {
+      document.getElementById('waitlistSection').classList.remove('hidden');
+      document.getElementById('waitlistSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function submitWaitlist() {
+      const email = document.getElementById('waitlistEmail').value.trim();
+      if (!email?.includes('@')) return;
+      const wl = JSON.parse(localStorage.getItem('commitcraft_waitlist') || '[]');
+      wl.push({ email, ts: new Date().toISOString() });
+      localStorage.setItem('commitcraft_waitlist', JSON.stringify(wl));
+      document.getElementById('waitlistSection').innerHTML = `
+        <div class="text-center py-4">
+          <p class="text-2xl mb-2">🎉</p>
+          <p class="font-semibold">You're in!</p>
+          <p class="text-sm text-white/50 mt-1">Locked in at $3/mo. We'll email you when Pro launches.</p>
+        </div>`;
+    }
+  </script>
+</body>
+</html>
